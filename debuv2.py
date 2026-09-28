@@ -1,12 +1,13 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime
 
 # Configurações iniciais da página do painel
 st.set_page_config(page_title="Painel Real-Time Debutantes", page_icon="📸", layout="wide")
 
 CSV_FILE = "debu.csv"
+FOTO_FILE = "fotografos.csv"
+
 COLUMNS = [
     "Nr de Ordem", "Nome da Debutante", 
     "Espera Família", "Família (Fotógrafos)", 
@@ -14,34 +15,41 @@ COLUMNS = [
     "Espera Estúdio Pós", "Estúdio Pós (Fotógrafos)"
 ]
 
-# Lista de profissionais do estúdio
-FOTOGRAFOS_DISPONIVEIS = [
-     "Willian", "Gui", "Ribeiro", 
-    "Vini Luz", "Fran", "Doris", "Rafa", "Rogério"
-]
-
-def inicializar_csv():
-    """Cria a base debu.csv com os cabeçalhos caso não exista."""
+# ----------------- GERENCIAMENTO DOS ARQUIVOS (BBDD) -----------------
+def inicializar_arquivos():
+    """Cria os arquivos CSV com os cabeçalhos caso não existam."""
     if not os.path.exists(CSV_FILE):
         df = pd.DataFrame(columns=COLUMNS)
         df.to_csv(CSV_FILE, index=False, encoding='utf-8-sig')
+    if not os.path.exists(FOTO_FILE):
+        df_foto = pd.DataFrame({"Nome": ["Carlos Augusto", "Beatriz Rocha", "Gabriel Mendes"]})
+        df_foto.to_csv(FOTO_FILE, index=False, encoding='utf-8-sig')
 
 def carregar_dados():
-    """Carrega os dados garantindo a tipagem correta de listas e inteiros."""
-    inicializar_csv()
+    inicializar_arquivos()
     try:
         df = pd.read_csv(CSV_FILE, encoding='utf-8-sig', dtype={"Nr de Ordem": str})
-        df = df.fillna("")
-        return df.reset_index(drop=True)
+        return df.fillna("").reset_index(drop=True)
     except Exception:
         return pd.DataFrame(columns=COLUMNS)
 
+def carregar_fotografos():
+    inicializar_arquivos()
+    try:
+        df = pd.read_csv(FOTO_FILE, encoding='utf-8-sig')
+        return sorted(df["Nome"].dropna().unique().tolist())
+    except Exception:
+        return ["Carlos Augusto", "Beatriz Rocha"]
+
 def salvar_dados(df):
-    """Salva as modificações de volta no arquivo de persistência."""
     df.to_csv(CSV_FILE, index=False, encoding='utf-8-sig')
 
+def salvar_fotografos(lista_fotos):
+    df = pd.DataFrame({"Nome": lista_fotos})
+    df.to_csv(FOTO_FILE, index=False, encoding='utf-8-sig')
+
+# ----------------- CONTROLES DE STATUS -----------------
 def alternar_status(status_atual):
-    """Ciclo de 3 estados para o controle de espera: Verde -> Branco -> Amarelo."""
     if status_atual == "VERDE":
         return "BRANCO"
     elif status_atual == "BRANCO":
@@ -50,16 +58,15 @@ def alternar_status(status_atual):
         return "VERDE"
 
 def obter_label_botao(status):
-    """Retorna o emoji e o texto correto baseado no status atual."""
     if status == "VERDE":
         return "🟢 Concluído"
     elif status == "BRANCO":
         return "⚪ Chamar"
     else:
-        return "🟡 Em Espera"
+        return "🟡 Na Fila"
 
+# ----------------- GERADOR DE RELATÓRIO -----------------
 def gerar_pdf_reportlab(df):
-    """Gera um relatório profissional em PDF usando ReportLab."""
     from reportlab.lib.pagesizes import letter, landscape
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -79,11 +86,10 @@ def gerar_pdf_reportlab(df):
     story.append(Paragraph("<b>PAINEL OPERACIONAL DE SESSÕES - DEBUTANTES</b>", title_style))
     story.append(Spacer(1, 15))
     
-    # Mapeamento do texto do status para legibilidade no PDF
     def formatar_status_pdf(status):
         if status == "VERDE": return "CONCLUÍDO"
         if status == "AMARELO": return "EM ESPERA"
-        return "CHAMAR"
+        return "LIBERADO"
 
     table_data = [[Paragraph(col, header_style) for col in COLUMNS]]
     for _, row in df.iterrows():
@@ -99,8 +105,7 @@ def gerar_pdf_reportlab(df):
         ]
         table_data.append(row_cells)
         
-    larguras_colunas = [45, 130, 75, 110, 75, 110, 75, 110]
-    
+    larguras_colunas = [60, 140, 75, 100, 75, 100, 75, 100]
     t = Table(table_data, colWidths=larguras_colunas, repeatRows=1)
     t.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2C3E50')),
@@ -116,16 +121,19 @@ def gerar_pdf_reportlab(df):
     doc.build(story)
     return pdf_path
 
-# Fluxo de dados principal
+# Carregamento inicial da memória/arquivos
 df_dados = carregar_dados()
+fotografos_disponiveis = carregar_fotografos()
 
 st.title("📸 Gestão de Sessões em Tempo Real — Debutantes")
-st.markdown("Controle de fluxo de estúdio, gerenciamento de filas e alocação dinâmica de fotógrafos.")
+st.markdown("Controle de fluxo de estúdio, gerenciamento de filas e equipe de fotógrafos.")
 st.markdown("---")
 
-# Menu de controle lateral
-st.sidebar.header("⚙️ Cadastro & Relatórios")
-with st.sidebar.expander("➕ Adicionar Nova Debutante", expanded=True):
+# ----------------- MENU LATERAL EXTERNO -----------------
+st.sidebar.header("⚙️ Painel de Configurações")
+
+# ABA 1: Cadastro de Debutantes
+with st.sidebar.expander("➕ Adicionar Nova Debutante", expanded=False):
     with st.form("cadastro_form", clear_on_submit=True):
         nr_ordem = st.text_input("Nr de Ordem:")
         nome_deb = st.text_input("Nome da Debutante:")
@@ -133,9 +141,9 @@ with st.sidebar.expander("➕ Adicionar Nova Debutante", expanded=True):
         
         if submit:
             if not nr_ordem.strip() or not nome_deb.strip():
-                st.error("Preencha todos os campos obrigatórios.")
+                st.error("Preencha todos os campos.")
             elif nr_ordem.strip() in df_dados["Nr de Ordem"].astype(str).values:
-                st.error("Este Número de Ordem já está cadastrado.")
+                st.error("Este Número de Ordem já existe.")
             else:
                 novo_reg = pd.DataFrame([{
                     "Nr de Ordem": nr_ordem.strip(),
@@ -152,7 +160,74 @@ with st.sidebar.expander("➕ Adicionar Nova Debutante", expanded=True):
                 st.success("Debutante incluída!")
                 st.rerun()
 
-# Seção de exportação de PDF
+# ABA 2: EDITAR OU REMOVER DEBUTANTE
+with st.sidebar.expander("✏️ Editar / ❌ Remover Debutante", expanded=False):
+    if df_dados.empty:
+        st.info("Nenhuma debutante na fila para gerenciar.")
+    else:
+        lista_opcoes_deb = [
+            f"{idx} - #{row['Nr de Ordem']} {row['Nome da Debutante']}"
+            for idx, row in df_dados.iterrows()
+        ]
+        deb_selecionada = st.selectbox("Selecione a Debutante:", lista_opcoes_deb, key="sb_gerenciar_deb")
+        idx_gerenciar = int(deb_selecionada.split(" - ")[0])
+        dados_atuais_deb = df_dados.loc[idx_gerenciar]
+        
+        with st.form("form_gerenciar_deb"):
+            edit_nr_ordem = st.text_input("Alterar Nr de Ordem:", value=str(dados_atuais_deb["Nr de Ordem"]))
+            edit_nome_deb = st.text_input("Alterar Nome da Debutante:", value=str(dados_atuais_deb["Nome da Debutante"]))
+            
+            col_btn_ed, col_btn_rem = st.columns(2)
+            with col_btn_ed:
+                btn_gravar_ed = st.form_submit_button("Gravar Alterações")
+            with col_btn_rem:
+                btn_remover_deb = st.form_submit_button("❌ Excluir Registro", type="primary")
+                
+            if btn_gravar_ed:
+                if not edit_nr_ordem.strip() or not edit_nome_deb.strip():
+                    st.error("Campos não podem ficar vazios.")
+                else:
+                    df_dados.at[idx_gerenciar, "Nr de Ordem"] = edit_nr_ordem.strip()
+                    df_dados.at[idx_gerenciar, "Nome da Debutante"] = edit_nome_deb.strip()
+                    salvar_dados(df_dados)
+                    st.success("Dados alterados com sucesso!")
+                    st.rerun()
+                    
+            if btn_remover_deb:
+                df_dados = df_dados.drop(idx_gerenciar).reset_index(drop=True)
+                salvar_dados(df_dados)
+                st.success("Debutante removida do sistema.")
+                st.rerun()
+
+# ABA 3: Cadastro da Equipe de Fotógrafos
+with st.sidebar.expander("👤 Equipe de Fotógrafos", expanded=False):
+    st.markdown("**Adicionar Profissional**")
+    novo_foto = st.text_input("Nome do Fotógrafo:", key="input_novo_foto")
+    if st.button("Cadastrar Fotógrafo"):
+        if novo_foto.strip() != "":
+            if novo_foto.strip() not in fotografos_disponiveis:
+                fotografos_disponiveis.append(novo_foto.strip())
+                salvar_fotografos(fotografos_disponiveis)
+                st.success(f"{novo_foto.strip()} adicionado!")
+                st.rerun()
+            else:
+                st.warning("Este profissional já está cadastrado.")
+        else:
+            st.error("Digite um nome válido.")
+            
+    st.markdown("---")
+    st.markdown("**Remover Profissional**")
+    if fotografos_disponiveis:
+        foto_remover = st.selectbox("Selecione para remover:", fotografos_disponiveis)
+        if st.button("Excluir Cadastro", type="secondary"):
+            fotografos_disponiveis.remove(foto_remover)
+            salvar_fotografos(fotografos_disponiveis)
+            st.success("Profissional removido.")
+            st.rerun()
+    else:
+        st.info("Nenhum fotógrafo cadastrado.")
+
+# ABA 4: Emissão de Relatório PDF
 st.sidebar.markdown("---")
 st.sidebar.header("📄 Exportações")
 if not df_dados.empty:
@@ -169,7 +244,7 @@ if not df_dados.empty:
         except Exception as e:
             st.sidebar.error(f"Erro ao processar PDF: {e}")
 else:
-    st.sidebar.info("Adicione registros para liberar a emissão do PDF.")
+    st.sidebar.info("Adicione registros para liberar o PDF.")
 
 # ----------------- PAINEL DINÂMICO EM TEMPO REAL -----------------
 st.subheader("📋 Painel Operacional de Controle")
@@ -177,32 +252,28 @@ st.subheader("📋 Painel Operacional de Controle")
 if df_dados.empty:
     st.info("Nenhuma debutante na fila de atendimento neste momento.")
 else:
-    # Cabeçalho customizado simulando uma Grid Table complexa
     h_col1, h_col2, h_col3, h_col4, h_col5, h_col6, h_col7, h_col8 = st.columns([1, 2.5, 1.2, 2.2, 1.2, 2.2, 1.2, 2.2])
     h_col1.markdown("**Nº Ordem**")
     h_col2.markdown("**Nome da Debutante**")
     h_col3.markdown("**Espera 1**")
-    h_col4.markdown("**Família**")
+    h_col4.markdown("**Etapa Família**")
     h_col5.markdown("**Espera 2**")
-    h_col6.markdown("**Individual**")
+    h_col6.markdown("**Etapa Individual**")
     h_col7.markdown("**Espera 3**")
     h_col8.markdown("**Estúdio Pós**")
     st.markdown("<hr style='margin: 0.5rem 0 1rem 0; border-color: #BDC3C7;'>", unsafe_allow_html=True)
 
-    # Renderização dinâmica linha por linha
     for idx, row in df_dados.iterrows():
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1, 2.5, 1.2, 2.2, 1.2, 2.2, 1.2, 2.2])
         
-        # Identificadores fixos
         c1.text(f"#{row['Nr de Ordem']}")
         
-        ###### Nome da debutante junto com botão de remover
         with c2:
             st.markdown(f"**{row['Nome da Debutante']}**")
-            #if st.button("🗑️del", key=f"del_{idx}"):
-            #    df_dados = df_dados.drop(idx).reset_index(drop=True)
-            #    salvar_dados(df_dados)
-            #   st.rerun()
+        #    if st.button("🗑️ Concluir Geral", key=f"del_{idx}"):
+        #        df_dados = df_dados.drop(idx).reset_index(drop=True)
+        #        salvar_dados(df_dados)
+        #        st.rerun()
         
         # --- CONTROLE ESPERA 1 (FAMÍLIA) ---
         label_esp1 = obter_label_botao(row["Espera Família"])
@@ -213,8 +284,9 @@ else:
             
         # --- SELEÇÃO FOTÓGRAFOS FAMÍLIA ---
         lista_f1 = [f.strip() for f in str(row["Família (Fotógrafos)"]).split(",") if f.strip() != ""]
+        lista_f1 = [f for f in lista_f1 if f in fotografos_disponiveis]
         f1_sel = c4.multiselect(
-            "Fotógrafos", FOTOGRAFOS_DISPONIVEIS, default=lista_f1, key=f"f1_{idx}", label_visibility="collapsed"
+            "Fotógrafos", fotografos_disponiveis, default=lista_f1, key=f"f1_{idx}", label_visibility="collapsed"
         )
         str_f1 = ", ".join(f1_sel)
         if str_f1 != str(row["Família (Fotógrafos)"]):
@@ -230,9 +302,10 @@ else:
             
         # --- SELEÇÃO FOTÓGRAFOS INDIVIDUAL ---
         lista_f2 = [f.strip() for f in str(row["Individual (Fotógrafos)"]).split(",") if f.strip() != ""]
+        lista_f2 = [f for f in lista_f2 if f in fotografos_disponiveis]
         f2_sel = c6.multiselect(
-            "Fotógrafos", FOTOGRAFOS_DISPONIVEIS, default=lista_f2, key=f"f2_{idx}", label_visibility="collapsed"
-            )
+            "Fotógrafos", fotografos_disponiveis, default=lista_f2, key=f"f2_{idx}", label_visibility="collapsed"
+        )
         str_f2 = ", ".join(f2_sel)
         if str_f2 != str(row["Individual (Fotógrafos)"]):
             df_dados.at[idx, "Individual (Fotógrafos)"] = str_f2
@@ -244,15 +317,16 @@ else:
             df_dados.at[idx, "Espera Estúdio Pós"] = alternar_status(row["Espera Estúdio Pós"])
             salvar_dados(df_dados)
             st.rerun()
-        
+            
         # --- SELEÇÃO FOTÓGRAFOS ESTÚDIO PÓS ---
         lista_f3 = [f.strip() for f in str(row["Estúdio Pós (Fotógrafos)"]).split(",") if f.strip() != ""]
+        lista_f3 = [f for f in lista_f3 if f in fotografos_disponiveis]
         f3_sel = c8.multiselect(
-            "Fotógrafos", FOTOGRAFOS_DISPONIVEIS, default=lista_f3, key=f"f3_{idx}", label_visibility="collapsed"
-            )
+            "Fotógrafos", fotografos_disponiveis, default=lista_f3, key=f"f3_{idx}", label_visibility="collapsed"
+        )
         str_f3 = ", ".join(f3_sel)
         if str_f3 != str(row["Estúdio Pós (Fotógrafos)"]):
             df_dados.at[idx, "Estúdio Pós (Fotógrafos)"] = str_f3
             salvar_dados(df_dados)
-            
-            st.markdown("", unsafe_allow_html=True)
+        
+        st.markdown("<hr style='margin: 0.4rem 0; border-color: #ECEFF1;'>", unsafe_allow_html=True)
