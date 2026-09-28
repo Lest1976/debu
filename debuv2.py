@@ -89,7 +89,7 @@ def gerar_pdf_reportlab(df):
     def formatar_status_pdf(status):
         if status == "VERDE": return "CONCLUÍDO"
         if status == "AMARELO": return "EM ESPERA"
-        return "LIBERADO"
+        return "CHAMAR"
 
     table_data = [[Paragraph(col, header_style) for col in COLUMNS]]
     for _, row in df.iterrows():
@@ -256,9 +256,9 @@ else:
     h_col1.markdown("**Nº Ordem**")
     h_col2.markdown("**Nome da Debutante**")
     h_col3.markdown("**Espera 1**")
-    h_col4.markdown("**Etapa Família**")
+    h_col4.markdown("**Estúdio Família**")
     h_col5.markdown("**Espera 2**")
-    h_col6.markdown("**Etapa Individual**")
+    h_col6.markdown("**Estúdio Individual**")
     h_col7.markdown("**Espera 3**")
     h_col8.markdown("**Estúdio Pós**")
     st.markdown("<hr style='margin: 0.5rem 0 1rem 0; border-color: #BDC3C7;'>", unsafe_allow_html=True)
