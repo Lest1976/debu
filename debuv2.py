@@ -22,7 +22,7 @@ def inicializar_arquivos():
         df = pd.DataFrame(columns=COLUMNS)
         df.to_csv(CSV_FILE, index=False, encoding='utf-8-sig')
     if not os.path.exists(FOTO_FILE):
-        df_foto = pd.DataFrame({"Nome": ["Carlos Augusto", "Beatriz Rocha", "Gabriel Mendes"]})
+        df_foto = pd.DataFrame({"Nome": ["Will", "Dani", "Gui", "Ribeiro", "Rafa", "Fran", "Doris"]})
         df_foto.to_csv(FOTO_FILE, index=False, encoding='utf-8-sig')
 
 def carregar_dados():
