@@ -199,10 +199,10 @@ else:
         # Nome da debutante junto com botão de remover
         with c2:
             st.markdown(f"**{row['Nome da Debutante']}**")
-            if st.button("🗑️del", key=f"del_{idx}"):
-                df_dados = df_dados.drop(idx).reset_index(drop=True)
-                salvar_dados(df_dados)
-                st.rerun()
+            #if st.button("🗑️del", key=f"del_{idx}"):
+            #    df_dados = df_dados.drop(idx).reset_index(drop=True)
+            #    salvar_dados(df_dados)
+            #   st.rerun()
         
         # --- CONTROLE ESPERA 1 (FAMÍLIA) ---
         label_esp1 = obter_label_botao(row["Espera Família"])
