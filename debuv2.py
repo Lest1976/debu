@@ -39,7 +39,7 @@ def carregar_fotografos():
         df = pd.read_csv(FOTO_FILE, encoding='utf-8-sig')
         return sorted(df["Nome"].dropna().unique().tolist())
     except Exception:
-        return ["Carlos Augusto", "Beatriz Rocha"]
+        return ["Will", "Dani", "Gui", "Ribeiro", "Rafa", "Fran", "Doris"]
 
 def salvar_dados(df):
     df.to_csv(CSV_FILE, index=False, encoding='utf-8-sig')
