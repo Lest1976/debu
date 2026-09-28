@@ -1,9 +1,21 @@
+#pip install streamlit-autorefresh reportlab pandas openpyxl
+#streamlit run debuv6.py
+
+
 import streamlit as st
 import pandas as pd
 import os
 
 # Configurações iniciais da página do painel
-st.set_page_config(page_title="Painel Real-Time Debutantes", page_icon="📸", layout="wide")
+st.set_page_config(page_title="Painel Real-Time Debutantes v6", page_icon="📸", layout="wide")
+
+# Tenta importar o autorefresh oficial para sincronismo real-time automático nas TVs
+try:
+    from streamlit_autorefresh import st_autorefresh
+    # Atualiza o painel de forma automática a cada 10 segundos
+    st_autorefresh(interval=10000, limit=1000, key="auto_refresh_painel")
+except ImportError:
+    pass
 
 CSV_FILE = "debu.csv"
 FOTO_FILE = "fotografos.csv"
@@ -63,7 +75,7 @@ def obter_label_botao(status):
     elif status == "BRANCO":
         return "⚪ Chamar"
     else:
-        return "🟡 Fila"
+        return "🟡 Na Fila"
 
 # ----------------- GERADOR DE RELATÓRIO -----------------
 def gerar_pdf_reportlab(df):
@@ -87,9 +99,9 @@ def gerar_pdf_reportlab(df):
     story.append(Spacer(1, 15))
     
     def formatar_status_pdf(status):
-        if status == "VERDE": return "CONCLUÍDO"
-        if status == "AMARELO": return "EM ESPERA"
-        return "CHAMAR"
+        if status == "VERDE": return "Concluído"
+        if status == "AMARELO": return "Na Fila"
+        return "Chamar"
 
     table_data = [[Paragraph(col, header_style) for col in COLUMNS]]
     for _, row in df.iterrows():
@@ -105,7 +117,7 @@ def gerar_pdf_reportlab(df):
         ]
         table_data.append(row_cells)
         
-    larguras_colunas = [60, 140, 75, 120, 75, 120, 75, 120]
+    larguras_colunas = [60, 150, 75, 110, 75, 110, 75, 110]
     t = Table(table_data, colWidths=larguras_colunas, repeatRows=1)
     t.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2C3E50')),
@@ -125,11 +137,6 @@ def gerar_pdf_reportlab(df):
 df_dados = carregar_dados()
 fotografos_disponiveis = carregar_fotografos()
 
-st.title("📸 Gestão de Sessões em Tempo Real — Debutantes")
-st.markdown("Controle de fluxo de estúdio, gerenciamento de filas e equipe de fotógrafos.")
-st.markdown("---")
-
-# ----------------- CONTROLES DE PERMISSÃO / SEGURANÇA -----------------
 st.sidebar.header("🔐 Controle de Acesso")
 perfil = st.sidebar.selectbox("Perfil de Usuário:", ["Visualizador", "Fotógrafo", "Coordenador"])
 
@@ -178,7 +185,7 @@ with st.sidebar.expander("➕ Adicionar Nova Debutante", expanded=False):
                 else:
                     novo_reg = pd.DataFrame([{
                         "Nr de Ordem": nr_ordem.strip(),
-                        "Nome da Debutante": nome_deb.strip(),
+                        "Nome da Debutante": name_deb.strip(),
                         "Espera Família": "BRANCO",
                         "Família (Fotógrafos)": "",
                         "Espera Individual": "BRANCO",
@@ -235,6 +242,9 @@ with st.sidebar.expander("✏️ Editar / ❌ Remover Debutante", expanded=False
             else:
                 st.error("Marque a caixa de confirmação acima para autorizar o apagamento.")
 
+
+
+        #############################################################################################################################################   
 # ABA 3: Cadastro da Equipe de Fotógrafos (Apenas Coordenador)
 with st.sidebar.expander("👤 Equipe de Fotógrafos", expanded=False):
     if not pode_gerenciar_bbdd:
@@ -269,8 +279,8 @@ with st.sidebar.expander("👤 Equipe de Fotógrafos", expanded=False):
                     st.error("Marque a caixa de confirmação para remover o fotógrafo.")
         else:
             st.info("Nenhum fotógrafo cadastrado.")
-
-# ABA 4: Emissão de Relatório PDF (Disponível para todos)
+             
+             # ABA 4: Emissão de Relatório PDF (Disponível para todos)
 st.sidebar.markdown("---")
 st.sidebar.header("📄 Exportações")
 if not df_dados.empty:
@@ -288,13 +298,15 @@ if not df_dados.empty:
             st.sidebar.error(f"Erro ao processar PDF: {e}")
 else:
     st.sidebar.info("Adicione registros para liberar o PDF.")
-
-# ----------------- PAINEL DINÂMICO EM TEMPO REAL -----------------
+             
+        ##############################################################################################################################################
+        #----------------- PAINEL DINÂMICO EM TEMPO REAL -----------------
 st.subheader("📋 Painel Operacional de Controle")
 
 if df_dados.empty:
     st.info("Nenhuma debutante na fila de atendimento neste momento.")
 else:
+    # Criação do cabeçalho da Grid com proporções exatas para cada coluna
     h_col1, h_col2, h_col3, h_col4, h_col5, h_col6, h_col7, h_col8 = st.columns([1, 2.5, 1.2, 2.2, 1.2, 2.2, 1.2, 2.2])
     h_col1.markdown("**Nº Ordem**")
     h_col2.markdown("**Nome da Debutante**")
@@ -306,74 +318,106 @@ else:
     h_col8.markdown("**Estúdio Pós**")
     st.markdown("<hr style='margin: 0.5rem 0 1rem 0; border-color: #BDC3C7;'>", unsafe_allow_html=True)
 
-    # Define o travamento do painel dependendo do login
+    # Armazena o estado de travamento baseado no perfil (Visualizador desabilita)
     desabilitar_botoes = not pode_alterar_painel
 
+    # Varredura linha por linha para renderização dinâmica
     for idx, row in df_dados.iterrows():
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1, 2.5, 1.2, 2.2, 1.2, 2.2, 1.2, 2.2])
         
+        # 1. Número de Ordem
         c1.text(f"#{row['Nr de Ordem']}")
         
+        # 2. Nome da Debutante + Botão de Conclusão Rápida (Apenas Coordenador)
         with c2:
             st.markdown(f"**{row['Nome da Debutante']}**")
-            #if pode_gerenciar_bbdd:
-            #    if st.button("🗑️ Concluir Geral", key=f"del_{idx}"):
-            #        df_dados = df_dados.drop(idx).reset_index(drop=True)
-            #        salvar_dados(df_dados)
-            #        st.rerun()
-        
-        # --- CONTROLE ESPERA 1 (FAMÍLIA) ---
+        #    if pode_gerenciar_bbdd:
+        #        if st.button("🗑️ Concluir Geral", key=f"del_{idx}"):
+        #            df_dados = df_dados.drop(idx).reset_index(drop=True)
+        #            salvar_dados(df_dados)
+        #            st.rerun()
+
+
+
+
+         #############################################################################################################################################   
+             
+                # --- CONTROLE ESPERA 1 (FAMÍLIA) ---
         label_esp1 = obter_label_botao(row["Espera Família"])
-        if c3.button(label_esp1, key=f"esp1_{idx}", use_container_width=True, disabled=desabilitar_botoes):
-            df_dados.at[idx, "Espera Família"] = alternar_status(row["Espera Família"])
-            salvar_dados(df_dados)
-            st.rerun()
+        if pode_alterar_painel:
+            if c3.button(label_esp1, key=f"esp1_{idx}", use_container_width=True):
+                df_dados.at[idx, "Espera Família"] = alternar_status(row["Espera Família"])
+                salvar_dados(df_dados)
+                st.rerun()
+        else:
+            c3.markdown(f"<div style='text-align:center; padding:6px; font-weight:bold; font-size:15px;'>{label_esp1}</div>", unsafe_allow_html=True)
             
         # --- SELEÇÃO FOTÓGRAFOS FAMÍLIA ---
         lista_f1 = [f.strip() for f in str(row["Família (Fotógrafos)"]).split(",") if f.strip() != ""]
         lista_f1 = [f for f in lista_f1 if f in fotografos_disponiveis]
-        f1_sel = c4.multiselect(
-            "Fotógrafos", fotografos_disponiveis, default=lista_f1, key=f"f1_{idx}", label_visibility="collapsed", disabled=desabilitar_botoes
-        )
-        str_f1 = ", ".join(f1_sel)
-        if str_f1 != str(row["Família (Fotógrafos)"]) and pode_alterar_painel:
-            df_dados.at[idx, "Família (Fotógrafos)"] = str_f1
-            salvar_dados(df_dados)
+        if pode_alterar_painel:
+            f1_sel = c4.multiselect(
+                "Fotógrafos", fotografos_disponiveis, default=lista_f1, key=f"f1_{idx}", label_visibility="collapsed"
+            )
+            str_f1 = ", ".join(f1_sel)
+            if str_f1 != str(row["Família (Fotógrafos)"]):
+                df_dados.at[idx, "Família (Fotógrafos)"] = str_f1
+                salvar_dados(df_dados)
+        else:
+            txt_f1 = ", ".join(lista_f1) if lista_f1 else "Nenhum alocado"
+            c4.markdown(f"<div style='padding:6px; color:#1A252F; font-size:14px;'>👤 {txt_f1}</div>", unsafe_allow_html=True)
             
         # --- CONTROLE ESPERA 2 (INDIVIDUAL) ---
         label_esp2 = obter_label_botao(row["Espera Individual"])
-        if c5.button(label_esp2, key=f"esp2_{idx}", use_container_width=True, disabled=desabilitar_botoes):
-            df_dados.at[idx, "Espera Individual"] = alternar_status(row["Espera Individual"])
-            salvar_dados(df_dados)
-            st.rerun()
+        if pode_alterar_painel:
+            if c5.button(label_esp2, key=f"esp2_{idx}", use_container_width=True):
+                df_dados.at[idx, "Espera Individual"] = alternar_status(row["Espera Individual"])
+                salvar_dados(df_dados)
+                st.rerun()
+        else:
+            c5.markdown(f"<div style='text-align:center; padding:6px; font-weight:bold; font-size:15px;'>{label_esp2}</div>", unsafe_allow_html=True)
             
         # --- SELEÇÃO FOTÓGRAFOS INDIVIDUAL ---
         lista_f2 = [f.strip() for f in str(row["Individual (Fotógrafos)"]).split(",") if f.strip() != ""]
         lista_f2 = [f for f in lista_f2 if f in fotografos_disponiveis]
-        f2_sel = c6.multiselect(
-            "Fotógrafos", fotografos_disponiveis, default=lista_f2, key=f"f2_{idx}", label_visibility="collapsed", disabled=desabilitar_botoes
-        )
-        str_f2 = ", ".join(f2_sel)
-        if str_f2 != str(row["Individual (Fotógrafos)"]) and pode_alterar_painel:
-            df_dados.at[idx, "Individual (Fotógrafos)"] = str_f2
-            salvar_dados(df_dados)
+        if pode_alterar_painel:
+            f2_sel = c6.multiselect(
+                "Fotógrafos", fotografos_disponiveis, default=lista_f2, key=f"f2_{idx}", label_visibility="collapsed"
+            )
+            str_f2 = ", ".join(f2_sel)
+            if str_f2 != str(row["Individual (Fotógrafos)"]):
+                df_dados.at[idx, "Individual (Fotógrafos)"] = str_f2
+                salvar_dados(df_dados)
+        else:
+            txt_f2 = ", ".join(lista_f2) if lista_f2 else "Nenhum alocado"
+            c6.markdown(f"<div style='padding:6px; color:#1A252F; font-size:14px;'>👤 {txt_f2}</div>", unsafe_allow_html=True)
 
         # --- CONTROLE ESPERA 3 (ESTÚDIO PÓS) ---
         label_esp3 = obter_label_botao(row["Espera Estúdio Pós"])
-        if c7.button(label_esp3, key=f"esp3_{idx}", use_container_width=True, disabled=desabilitar_botoes):
-            df_dados.at[idx, "Espera Estúdio Pós"] = alternar_status(row["Espera Estúdio Pós"])
-            salvar_dados(df_dados)
-            st.rerun()
+        if pode_alterar_painel:
+            if c7.button(label_esp3, key=f"esp3_{idx}", use_container_width=True):
+                df_dados.at[idx, "Espera Estúdio Pós"] = alternar_status(row["Espera Estúdio Pós"])
+                salvar_dados(df_dados)
+                st.rerun()
+        else:
+            c7.markdown(f"<div style='text-align:center; padding:6px; font-weight:bold; font-size:15px;'>{label_esp3}</div>", unsafe_allow_html=True)
             
         # --- SELEÇÃO FOTÓGRAFOS ESTÚDIO PÓS ---
         lista_f3 = [f.strip() for f in str(row["Estúdio Pós (Fotógrafos)"]).split(",") if f.strip() != ""]
         lista_f3 = [f for f in lista_f3 if f in fotografos_disponiveis]
-        f3_sel = c8.multiselect(
-            "Fotógrafos", fotografos_disponiveis, default=lista_f3, key=f"f3_{idx}", label_visibility="collapsed", disabled=desabilitar_botoes
-        )
-        str_f3 = ", ".join(f3_sel)
-        if str_f3 != str(row["Estúdio Pós (Fotógrafos)"]) and pode_alterar_painel:
-            df_dados.at[idx, "Estúdio Pós (Fotógrafos)"] = str_f3
-            salvar_dados(df_dados)
+        if pode_alterar_painel:
+            f3_sel = c8.multiselect(
+                "Fotógrafos", fotografos_disponiveis, default=lista_f3, key=f"f3_{idx}", label_visibility="collapsed"
+            )
+            str_f3 = ", ".join(f3_sel)
+            if str_f3 != str(row["Estúdio Pós (Fotógrafos)"]):
+                df_dados.at[idx, "Estúdio Pós (Fotógrafos)"] = str_f3
+                salvar_dados(df_dados)
+        else:
+            txt_f3 = ", ".join(lista_f3) if lista_f3 else "Nenhum alocado"
+            c8.markdown(f"<div style='padding:6px; color:#1A252F; font-size:14px;'>👤 {txt_f3}</div>", unsafe_allow_html=True)
         
         st.markdown("<hr style='margin: 0.4rem 0; border-color: #ECEFF1;'>", unsafe_allow_html=True)
+
+        
+
