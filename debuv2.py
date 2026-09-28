@@ -196,7 +196,7 @@ else:
         # Identificadores fixos
         c1.text(f"#{row['Nr de Ordem']}")
         
-        # Nome da debutante junto com botão de remover
+        ###### Nome da debutante junto com botão de remover
         with c2:
             st.markdown(f"**{row['Nome da Debutante']}**")
             #if st.button("🗑️del", key=f"del_{idx}"):
