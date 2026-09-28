@@ -185,7 +185,7 @@ with st.sidebar.expander("➕ Adicionar Nova Debutante", expanded=False):
                 else:
                     novo_reg = pd.DataFrame([{
                         "Nr de Ordem": nr_ordem.strip(),
-                        "Nome da Debutante": name_deb.strip(),
+                        "Nome da Debutante": nome_deb.strip(),
                         "Espera Família": "BRANCO",
                         "Família (Fotógrafos)": "",
                         "Espera Individual": "BRANCO",
