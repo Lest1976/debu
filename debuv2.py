@@ -22,7 +22,7 @@ def inicializar_arquivos():
         df = pd.DataFrame(columns=COLUMNS)
         df.to_csv(CSV_FILE, index=False, encoding='utf-8-sig')
     if not os.path.exists(FOTO_FILE):
-        df_foto = pd.DataFrame({"Nome": ["Will", "Dani", "Gui", "Ribeiro", "Rafa", "Fran", "Doris"]})
+        df_foto = pd.DataFrame({"Nome": ["Will", "Dani", "Gui", "Ribeiro", "Fran", "Doris", "Rafa", "Rogério", "Vini Luz"]})
         df_foto.to_csv(FOTO_FILE, index=False, encoding='utf-8-sig')
 
 def carregar_dados():
@@ -39,7 +39,7 @@ def carregar_fotografos():
         df = pd.read_csv(FOTO_FILE, encoding='utf-8-sig')
         return sorted(df["Nome"].dropna().unique().tolist())
     except Exception:
-        return ["Will", "Dani", "Gui", "Ribeiro", "Rafa", "Fran", "Doris"]
+        return ["Will", "Dani", "Gui", "Ribeiro", "Fran", "Doris", "Rafa", "Rogério", "Vini Luz"]
 
 def salvar_dados(df):
     df.to_csv(CSV_FILE, index=False, encoding='utf-8-sig')
@@ -88,7 +88,7 @@ def gerar_pdf_reportlab(df):
     
     def formatar_status_pdf(status):
         if status == "VERDE": return "CONCLUÍDO"
-        if status == "AMARELO": return "EM ESPERA"
+        if status == "AMARELO": return "NA FILA"
         return "CHAMAR"
 
     table_data = [[Paragraph(col, header_style) for col in COLUMNS]]
@@ -105,7 +105,7 @@ def gerar_pdf_reportlab(df):
         ]
         table_data.append(row_cells)
         
-    larguras_colunas = [60, 140, 75, 100, 75, 100, 75, 100]
+    larguras_colunas = [60, 140, 70, 110, 70, 110, 70, 110]
     t = Table(table_data, colWidths=larguras_colunas, repeatRows=1)
     t.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2C3E50')),
@@ -129,7 +129,23 @@ st.title("📸 Gestão de Sessões em Tempo Real — Debutantes")
 st.markdown("Controle de fluxo de estúdio, gerenciamento de filas e equipe de fotógrafos.")
 st.markdown("---")
 
-# ----------------- MENU LATERAL EXTERNO -----------------
+# ----------------- CONTROLES DE ACESSO (AUTENTICAÇÃO) -----------------
+st.sidebar.header("🔐 Controle de Acesso")
+perfil = st.sidebar.selectbox("Perfil de Usuário:", ["Fotógrafo", "Coordenador"])
+
+autenticado = False
+if perfil == "Coordenador":
+    senha = st.sidebar.text_input("Senha de Acesso:", type="password", key="senha_coordenador")
+    if senha == "silvas":
+        autenticado = True
+        st.sidebar.success("🔓 Modo Coordenador Ativo")
+    elif senha != "":
+        st.sidebar.error("❌ Senha Incorreta")
+else:
+    autenticado = False
+    st.sidebar.info("ℹ️ Modo Consulta Operacional")
+
+st.sidebar.markdown("---")
 st.sidebar.header("⚙️ Painel de Configurações")
 
 # ABA 1: Cadastro de Debutantes
@@ -162,7 +178,9 @@ with st.sidebar.expander("➕ Adicionar Nova Debutante", expanded=False):
 
 # ABA 2: EDITAR OU REMOVER DEBUTANTE
 with st.sidebar.expander("✏️ Editar / ❌ Remover Debutante", expanded=False):
-    if df_dados.empty:
+    if not autenticado:
+        st.warning("🔒 Apenas Coordenadores podem editar ou remover registros.")
+    elif df_dados.empty:
         st.info("Nenhuma debutante na fila para gerenciar.")
     else:
         lista_opcoes_deb = [
@@ -177,12 +195,8 @@ with st.sidebar.expander("✏️ Editar / ❌ Remover Debutante", expanded=False
             edit_nr_ordem = st.text_input("Alterar Nr de Ordem:", value=str(dados_atuais_deb["Nr de Ordem"]))
             edit_nome_deb = st.text_input("Alterar Nome da Debutante:", value=str(dados_atuais_deb["Nome da Debutante"]))
             
-            col_btn_ed, col_btn_rem = st.columns(2)
-            with col_btn_ed:
-                btn_gravar_ed = st.form_submit_button("Gravar Alterações")
-            with col_btn_rem:
-                btn_remover_deb = st.form_submit_button("❌ Excluir Registro", type="primary")
-                
+            btn_gravar_ed = st.form_submit_button("Gravar Alterações")
+            
             if btn_gravar_ed:
                 if not edit_nr_ordem.strip() or not edit_nome_deb.strip():
                     st.error("Campos não podem ficar vazios.")
@@ -192,40 +206,55 @@ with st.sidebar.expander("✏️ Editar / ❌ Remover Debutante", expanded=False
                     salvar_dados(df_dados)
                     st.success("Dados alterados com sucesso!")
                     st.rerun()
-                    
-            if btn_remover_deb:
+        
+        st.markdown("---")
+        st.markdown("⚠️ **Zona de Exclusão Definitiva**")
+        confirmar_exclusao = st.checkbox("Estou ciente de que esta ação removerá a debutante permanentemente.", key=f"check_del_{idx_gerenciar}")
+        
+        if st.button("❌ Excluir Registro Definitivamente", type="primary"):
+            if confirmar_exclusao:
                 df_dados = df_dados.drop(idx_gerenciar).reset_index(drop=True)
                 salvar_dados(df_dados)
-                st.success("Debutante removida do sistema.")
+                st.success("Debutante removida com sucesso.")
                 st.rerun()
+            else:
+                st.error("Marque a caixa de confirmação acima para autorizar o apagamento.")
 
 # ABA 3: Cadastro da Equipe de Fotógrafos
 with st.sidebar.expander("👤 Equipe de Fotógrafos", expanded=False):
-    st.markdown("**Adicionar Profissional**")
-    novo_foto = st.text_input("Nome do Fotógrafo:", key="input_novo_foto")
-    if st.button("Cadastrar Fotógrafo"):
-        if novo_foto.strip() != "":
-            if novo_foto.strip() not in fotografos_disponiveis:
-                fotografos_disponiveis.append(novo_foto.strip())
-                salvar_fotografos(fotografos_disponiveis)
-                st.success(f"{novo_foto.strip()} adicionado!")
-                st.rerun()
-            else:
-                st.warning("Este profissional já está cadastrado.")
-        else:
-            st.error("Digite um nome válido.")
-            
-    st.markdown("---")
-    st.markdown("**Remover Profissional**")
-    if fotografos_disponiveis:
-        foto_remover = st.selectbox("Selecione para remover:", fotografos_disponiveis)
-        if st.button("Excluir Cadastro", type="secondary"):
-            fotografos_disponiveis.remove(foto_remover)
-            salvar_fotografos(fotografos_disponiveis)
-            st.success("Profissional removido.")
-            st.rerun()
+    if not autenticado:
+        st.warning("🔒 Apenas Coordenadores podem gerenciar a equipe de fotógrafos.")
     else:
-        st.info("Nenhum fotógrafo cadastrado.")
+        st.markdown("**Adicionar Profissional**")
+        novo_foto = st.text_input("Nome do Fotógrafo:", key="input_novo_foto")
+        if st.button("Cadastrar Fotógrafo"):
+            if novo_foto.strip() != "":
+                if novo_foto.strip() not in fotografos_disponiveis:
+                    fotografos_disponiveis.append(novo_foto.strip())
+                    salvar_fotografos(fotografos_disponiveis)
+                    st.success(f"{novo_foto.strip()} adicionado!")
+                    st.rerun()
+                else:
+                    st.warning("Este profissional já está cadastrado.")
+            else:
+                st.error("Digite um nome válido.")
+                
+        st.markdown("---")
+        st.markdown("**Remover Profissional**")
+        if fotografos_disponiveis:
+            foto_remover = st.selectbox("Selecione para remover:", fotografos_disponiveis)
+            
+            confirmar_foto_del = st.checkbox("Confirmar remoção do profissional da lista global.")
+            if st.button("Excluir Cadastro", type="secondary"):
+                if confirmar_foto_del:
+                    fotografos_disponiveis.remove(foto_remover)
+                    salvar_fotografos(fotografos_disponiveis)
+                    st.success("Profissional removido.")
+                    st.rerun()
+                else:
+                    st.error("Marque a caixa de confirmação para remover o fotógrafo.")
+        else:
+            st.info("Nenhum fotógrafo cadastrado.")
 
 # ABA 4: Emissão de Relatório PDF
 st.sidebar.markdown("---")
@@ -270,10 +299,11 @@ else:
         
         with c2:
             st.markdown(f"**{row['Nome da Debutante']}**")
-        #    if st.button("🗑️ Concluir Geral", key=f"del_{idx}"):
-        #        df_dados = df_dados.drop(idx).reset_index(drop=True)
-        #        salvar_dados(df_dados)
-        #        st.rerun()
+            #if autenticado:
+            #    if st.button("🗑 Tangível / Remover", key=f"del_{idx}"):
+            #        df_dados = df_dados.drop(idx).reset_index(drop=True)
+            #        salvar_dados(df_dados)
+            #        st.rerun()
         
         # --- CONTROLE ESPERA 1 (FAMÍLIA) ---
         label_esp1 = obter_label_botao(row["Espera Família"])
